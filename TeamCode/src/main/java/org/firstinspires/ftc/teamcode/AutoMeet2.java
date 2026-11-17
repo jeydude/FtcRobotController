@@ -53,12 +53,10 @@ public class AutoMeet2 extends LinearOpMode {
 
     private static final double FEEDER_POWER = 0.85;
 
-    private static final double SHOOTER_READY_TIMEOUT = 1000;
+    private static final double SHOOTER_READY_TIMEOUT = 3000;
     private static final double SHOOTING_TIME = 4000;
-    // Leave SHOOT after this long even if the shooter never reaches TARGET_RPM
-    private static final double MAX_SHOOT_TIME = 6000;
-    // Give up on a move after this long (e.g. a wheel stalled against a wall)
-    private static final double MOVE_TIMEOUT = 3000;
+    // Pause after arriving at the shooting spot before feeding
+    private static final double SETTLE_TIME = 300;
 
     private boolean shooterEnabled = false;
     private boolean atTargetSpeed = false;
@@ -128,11 +126,12 @@ public class AutoMeet2 extends LinearOpMode {
                 case MOVE_FORWARD:
 
                     if (!moveStarted) {
-                        drive(-7, DRIVE_SPEED);
+                        // 10 in with the corrected TICKS_PER_REV = the old tuned "-7"
+                        drive(-10, DRIVE_SPEED);
                         moveStarted = true;
                     }
 
-                    if (moveFinished()) {
+                    if (driveCompleted()) {
                         stopDrive();
                         moveStarted = false;
                         state = AutoState.SHOOT;
@@ -145,16 +144,17 @@ public class AutoMeet2 extends LinearOpMode {
 
                 case SHOOT:
 
-                    feedRequested = true;
+                    // Let the robot stop rocking before the first ball is fed
+                    feedRequested =
+                            shootStateTimer.milliseconds() > SETTLE_TIME;
 
-                    if (atTargetSpeed && !shootingTimerStarted) {
+                    if (feedRequested && atTargetSpeed && !shootingTimerStarted) {
                         runtime.reset();
                         shootingTimerStarted = true;
                     }
 
-                    if ((shootingTimerStarted &&
-                            runtime.milliseconds() > SHOOTING_TIME)
-                            || shootStateTimer.milliseconds() > MAX_SHOOT_TIME) {
+                    if (shootingTimerStarted &&
+                            runtime.milliseconds() > SHOOTING_TIME) {
 
                         state = AutoState.STRAFE_RIGHT;
                         runtime.reset();
@@ -167,11 +167,11 @@ public class AutoMeet2 extends LinearOpMode {
                     shooterEnabled = false;
 
                     if (!moveStarted) {
-                        strafe(27, DRIVE_SPEED);
+                        strafe(38.6, DRIVE_SPEED);   // = old tuned 27
                         moveStarted = true;
                     }
 
-                    if (moveFinished()) {
+                    if (driveCompleted()) {
                         stopDrive();
                         moveStarted = false;
                         state = AutoState.FORWARD;
@@ -183,11 +183,11 @@ public class AutoMeet2 extends LinearOpMode {
                 case FORWARD:
 
                     if (!moveStarted) {
-                        drive(-60, DRIVE_SPEED);
+                        drive(-85.9, DRIVE_SPEED);   // = old tuned -60
                         moveStarted = true;
                     }
 
-                    if (moveFinished()) {
+                    if (driveCompleted()) {
                         stopDrive();
                         moveStarted = false;
                         state = AutoState.PARK;
@@ -199,11 +199,11 @@ public class AutoMeet2 extends LinearOpMode {
                 case PARK:
 
                     if (!moveStarted) {
-                        strafe(11, DRIVE_SPEED);   // was 13 then -2; combined into one move
+                        strafe(15.7, DRIVE_SPEED);   // = old tuned 13 then -2, as one move
                         moveStarted = true;
                     }
 
-                    if (moveFinished()) {
+                    if (driveCompleted()) {
                         stopDrive();
                         moveStarted = false;
                         state = AutoState.STOP;
@@ -452,13 +452,6 @@ public class AutoMeet2 extends LinearOpMode {
                 && !frontRight.isBusy()
                 && !backLeft.isBusy()
                 && !backRight.isBusy();
-    }
-
-    // A move is finished when every wheel reaches its target, or after
-    // MOVE_TIMEOUT so one stalled wheel can't freeze the rest of auto.
-    // Relies on runtime being reset each time the state changes.
-    private boolean moveFinished() {
-        return driveCompleted() || runtime.milliseconds() > MOVE_TIMEOUT;
     }
 
     private void stopDrive() {
